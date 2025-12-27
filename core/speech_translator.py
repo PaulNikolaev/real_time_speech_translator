@@ -1,3 +1,7 @@
+"""
+Основной класс для перевода речи: объединяет все компоненты системы.
+"""
+
 import time
 from audio import AudioHandler
 from recognition import SpeechRecognizer
@@ -15,6 +19,9 @@ class SpeechTranslator:
 
         Args:
             target_lang: Целевой язык ('en' для английского, 'fr' для французского).
+
+        Raises:
+            ValueError: Если указан неподдерживаемый целевой язык.
         """
         if target_lang not in ["en", "fr"]:
             raise ValueError(f"Неподдерживаемый целевой язык: {target_lang}. Используйте 'en' или 'fr'")
@@ -25,7 +32,6 @@ class SpeechTranslator:
 
         self.audio_handler = AudioHandler()
 
-        # Загрузка моделей с мониторингом памяти
         if DEVICE == "cuda":
             print_memory_usage()
 
@@ -33,7 +39,6 @@ class SpeechTranslator:
 
         if DEVICE == "cuda":
             print_memory_usage()
-            # Очистка кэша после загрузки Whisper для освобождения памяти
             clear_cache()
 
         self.translator = TextTranslator()
@@ -53,15 +58,18 @@ class SpeechTranslator:
         start_time = time.time()
 
         try:
-            # Шаг 1: Запись с микрофона
             step_start = time.time()
             recorded_path = self.audio_handler.record_audio(RECORD_DURATION)
             record_time = time.time() - step_start
             print(f"⏱ Запись завершена за {record_time:.2f} сек")
 
-            # Шаг 2: Распознавание речи
             step_start = time.time()
-            recognized_text = self.recognizer.recognize(recorded_path)
+            try:
+                recognized_text = self.recognizer.recognize(recorded_path)
+            except Exception as e:
+                print(f"Ошибка при распознавании речи: {e}")
+                print("Попробуйте еще раз...")
+                return
             recognition_time = time.time() - step_start
             print(f"⏱ Распознавание завершено за {recognition_time:.2f} сек")
 
@@ -69,7 +77,6 @@ class SpeechTranslator:
                 print("Не удалось распознать речь. Попробуйте еще раз.")
                 return
 
-            # Шаг 3: Перевод
             step_start = time.time()
             translated_text = self.translator.translate(recognized_text, target_lang=self.target_lang)
             translation_time = time.time() - step_start
@@ -79,25 +86,22 @@ class SpeechTranslator:
                 print("Не удалось перевести текст.")
                 return
 
-            # Шаг 4: Синтез речи с клонированием голоса (используем записанный аудио как референс)
             step_start = time.time()
             result_path = self.synthesizer.synthesize(
                 translated_text,
                 target_lang=self.target_lang,
                 output_filename=f"synthesized_{self.target_lang}.wav",
-                reference_audio_path=recorded_path  # Используем записанный аудио для клонирования голоса
+                reference_audio_path=recorded_path
             )
             synthesis_time = time.time() - step_start
             print(f"⏱ Синтез завершен за {synthesis_time:.2f} сек")
 
             if result_path:
-                # Шаг 5: Воспроизведение
                 step_start = time.time()
                 self.audio_handler.play_audio(result_path)
                 playback_time = time.time() - step_start
                 print(f"⏱ Воспроизведение завершено за {playback_time:.2f} сек")
 
-                # Итоговая статистика
                 total_time = time.time() - start_time
                 processing_time = total_time - record_time - playback_time
 

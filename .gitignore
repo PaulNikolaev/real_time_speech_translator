@@ -46,5 +46,5 @@ Thumbs.db
 
 # Models cache
 .cache/
-models/ - раскомментируйте, если не хотите коммитить модели в репозиторий
+models/
 
